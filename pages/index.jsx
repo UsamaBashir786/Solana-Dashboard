@@ -5,7 +5,7 @@ import WalletCard from '../components/WalletCard';
 import SendSol from '../components/SendSol';
 import TransactionsTable from '../components/TransactionsTable';
 import QuickTips from '../components/QuickTips';
-import { getProvider, isPhantomInstalled } from '../utils/solana';
+import { getProvider, isPhantomInstalled, connectWallet } from '../utils/solana';
 import { Loader2, Wallet } from 'lucide-react';
 
 export default function Home() {
@@ -47,16 +47,20 @@ export default function Home() {
         const phantomProvider = getProvider();
         setProvider(phantomProvider);
         
-        // Check if already connected
-        if (phantomProvider.isConnected) {
+        // Check localStorage for previously connected wallet
+        const savedWallet = localStorage.getItem('solanaWallet');
+        
+        if (savedWallet) {
           try {
-            const account = phantomProvider.publicKey;
-            if (account) {
-              setWalletConnected(true);
-              setPublicKey(account.toString());
-            }
+            // Try to reconnect silently
+            const response = await phantomProvider.connect({ onlyIfTrusted: true });
+            setWalletConnected(true);
+            setPublicKey(response.publicKey.toString());
+            localStorage.setItem('solanaWallet', response.publicKey.toString());
           } catch (e) {
-            console.log('Not previously connected');
+            // Silent reconnect failed, require user interaction
+            console.log('Silent reconnect failed, will require user click');
+            localStorage.removeItem('solanaWallet');
           }
         }
         
@@ -65,6 +69,7 @@ export default function Home() {
           if (newPublicKey) {
             setPublicKey(newPublicKey.toString());
             setWalletConnected(true);
+            localStorage.setItem('solanaWallet', newPublicKey.toString());
           } else {
             handleDisconnect();
           }
@@ -73,6 +78,11 @@ export default function Home() {
         // Listen for disconnect events 
         phantomProvider.on('disconnect', () => {
           handleDisconnect();
+        });
+        
+        // Listen for connect events
+        phantomProvider.on('connect', () => {
+          console.log('Phantom wallet connected');
         });
         
       } catch (error) {
@@ -104,17 +114,24 @@ export default function Home() {
       const response = await provider.connect();
       setWalletConnected(true);
       setPublicKey(response.publicKey.toString());
+      
+      // Save to localStorage for auto-reconnect
+      localStorage.setItem('solanaWallet', response.publicKey.toString());
     } catch (error) {
       console.error('Connection error:', error);
       setConnectionError('Failed to connect wallet. Please try again.');
+      localStorage.removeItem('solanaWallet');
     }
   };
 
   const handleDisconnect = async () => {
     try {
-      await provider.disconnect();
+      if (provider && provider.disconnect) {
+        await provider.disconnect();
+      }
       setWalletConnected(false);
       setPublicKey(null);
+      localStorage.removeItem('solanaWallet');
     } catch (error) {
       console.error('Disconnection error:', error);
     }
@@ -152,17 +169,30 @@ export default function Home() {
           <Wallet className="h-16 w-16 md:h-24 md:w-24 text-gray-800 dark:text-white" />
         </div>
         <h2 className="text-2xl md:text-3xl font-bold mb-3 md:mb-4 text-gray-800 dark:text-white">
-          Connect Your Phantom Wallet
+          {localStorage.getItem('solanaWallet') ? 'Reconnect Your Wallet' : 'Connect Your Phantom Wallet'}
         </h2>
         <p className="text-sm md:text-base text-gray-600 dark:text-gray-400 mb-6 md:mb-8">
-          Connect your Phantom wallet to access your SOL balance, send transactions, and view your transaction history on the Solana devnet.
+          {localStorage.getItem('solanaWallet') 
+            ? 'Your wallet was disconnected. Click below to reconnect.'
+            : 'Connect your Phantom wallet to access your SOL balance, send transactions, and view your transaction history on the Solana devnet.'}
         </p>
         <button
           onClick={handleConnect}
           className="btn-primary text-base md:text-lg px-6 py-3 md:px-8 md:py-4 w-full md:w-auto"
         >
-          Connect Phantom Wallet
+          {localStorage.getItem('solanaWallet') ? 'Reconnect Wallet' : 'Connect Phantom Wallet'}
         </button>
+        {localStorage.getItem('solanaWallet') && (
+          <button
+            onClick={() => {
+              localStorage.removeItem('solanaWallet');
+              window.location.reload();
+            }}
+            className="mt-3 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+          >
+            Use different wallet
+          </button>
+        )}
         <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-4 md:mt-6">
           By connecting, you agree to our Terms of Service and Privacy Policy
         </p>
@@ -176,8 +206,14 @@ export default function Home() {
         <div className="inline-block p-6 bg-gradient-to-r from-solana-purple/20 to-solana-green/20 rounded-2xl mb-6">
           <Loader2 className="h-16 w-16 text-solana-green animate-spin" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Initializing Dashboard</h2>
-        <p className="text-gray-600 dark:text-gray-400">Setting up Solana connection...</p>
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
+          {localStorage.getItem('solanaWallet') ? 'Reconnecting Wallet...' : 'Initializing Dashboard'}
+        </h2>
+        <p className="text-gray-600 dark:text-gray-400">
+          {localStorage.getItem('solanaWallet') 
+            ? 'Restoring your wallet connection...' 
+            : 'Setting up Solana connection...'}
+        </p>
       </div>
     </div>
   );
@@ -284,7 +320,7 @@ const FooterLink = ({ href, text }) => (
   </a>
 );
 
-// Add missing AlertTriangle import
+// Add AlertTriangle component
 const AlertTriangle = ({ className }) => (
   <svg 
     className={className} 
