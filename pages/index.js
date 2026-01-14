@@ -294,13 +294,13 @@ export default function Home() {
     <meta name="description" content="Professional Solana wallet dashboard with Phantom integration" />
     
     {/* Use the Color version as main favicon */}
-    <link rel="icon" href="/Solana%20Logomark%20-%20Color.svg" type="image/svg+xml" />
+    <link rel="icon" href="/Solana-Logomark-Color.svg" type="image/svg+xml" />
     
     {/* Optional: Create dynamic favicon based on dark/light mode */}
     {darkMode ? (
-      <link rel="icon" href="/Solana%20Logomark%20-%20White.svg" type="image/svg+xml" />
+      <link rel="icon" href="/Solana-Logomark-White.svg" type="image/svg+xml" />
     ) : (
-      <link rel="icon" href="/Solana%20Logomark%20-%20Black.svg" type="image/svg+xml" />
+      <link rel="icon" href="/Solana-Logomark-Black.svg" type="image/svg+xml" />
     )}
     
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
