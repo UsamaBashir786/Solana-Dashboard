@@ -6,7 +6,7 @@ import SendSol from '../components/SendSol';
 import TransactionsTable from '../components/TransactionsTable';
 import QuickTips from '../components/QuickTips';
 import { getProvider, isPhantomInstalled } from '../utils/solana';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Wallet } from 'lucide-react';
 
 export default function Home() {
   const [walletConnected, setWalletConnected] = useState(false);
@@ -47,24 +47,30 @@ export default function Home() {
         const phantomProvider = getProvider();
         setProvider(phantomProvider);
         
+        // Check if already connected
         if (phantomProvider.isConnected) {
           try {
-            const response = await phantomProvider.connect({ onlyIfTrusted: true });
-            setWalletConnected(true);
-            setPublicKey(response.publicKey.toString());
+            const account = phantomProvider.publicKey;
+            if (account) {
+              setWalletConnected(true);
+              setPublicKey(account.toString());
+            }
           } catch (e) {
-            // Eager connection failed, require user interaction
+            console.log('Not previously connected');
           }
         }
         
+        // Listen for account changes 
         phantomProvider.on('accountChanged', (newPublicKey) => {
           if (newPublicKey) {
             setPublicKey(newPublicKey.toString());
+            setWalletConnected(true);
           } else {
             handleDisconnect();
           }
         });
         
+        // Listen for disconnect events 
         phantomProvider.on('disconnect', () => {
           handleDisconnect();
         });
@@ -199,7 +205,29 @@ export default function Home() {
           phantomAvailable={phantomAvailable}
         />
 
-        {walletConnected ? (
+        {!phantomAvailable ? (
+          <div className="mb-6 md:mb-8 p-4 md:p-6 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-xl md:rounded-2xl">
+            <div className="flex items-start md:items-center space-x-3 md:space-x-4">
+              <div className="p-2 md:p-3 bg-yellow-500/20 rounded-lg md:rounded-xl flex-shrink-0">
+                <AlertTriangle className="h-5 w-5 md:h-6 md:w-6 text-yellow-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base md:text-lg font-semibold text-yellow-600 dark:text-yellow-500">Phantom Wallet Required</h3>
+                <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 mt-1">
+                  Please install the Phantom wallet extension to use this dashboard. 
+                  <a 
+                    href="https://phantom.app/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-solana-green hover:underline ml-1 md:ml-2"
+                  >
+                    Download Phantom
+                  </a>
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : walletConnected ? (
           <>
             <WalletCard publicKey={publicKey} />
             
@@ -254,4 +282,22 @@ const FooterLink = ({ href, text }) => (
   >
     {text}
   </a>
+);
+
+// Add missing AlertTriangle import
+const AlertTriangle = ({ className }) => (
+  <svg 
+    className={className} 
+    fill="none" 
+    stroke="currentColor" 
+    viewBox="0 0 24 24" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      strokeWidth="2" 
+      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.342 16.5c-.77.833.192 2.5 1.732 2.5z" 
+    />
+  </svg>
 );
