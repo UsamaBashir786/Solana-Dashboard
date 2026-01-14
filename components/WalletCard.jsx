@@ -10,6 +10,8 @@ const WalletCard = ({ publicKey }) => {
 
   const fetchBalance = async (isManualRefresh = false) => {
     if (!publicKey) {
+      setBalance(0);
+      setUsdValue(0);
       setLoading(false);
       return;
     }
@@ -24,10 +26,12 @@ const WalletCard = ({ publicKey }) => {
       const lamports = await getBalance(publicKey);
       setBalance(lamports);
       
-      const solPrice = 100; // Mock price - in production use API
+      const solPrice = 100;
       setUsdValue((lamports / 1e9) * solPrice);
     } catch (error) {
       console.error('Error fetching balance:', error);
+      setBalance(0);
+      setUsdValue(0);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -41,14 +45,18 @@ const WalletCard = ({ publicKey }) => {
     return () => clearInterval(interval);
   }, [publicKey]);
 
-  const CardGrid = ({ children }) => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
-      {children}
-    </div>
-  );
+  if (!publicKey) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
+        <NoWalletCard />
+        <NoWalletCard />
+        <NetworkStatsCard />
+      </div>
+    );
+  }
 
   return (
-    <CardGrid>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
       <BalanceCard 
         balance={balance}
         usdValue={usdValue}
@@ -63,9 +71,21 @@ const WalletCard = ({ publicKey }) => {
       />
       
       <NetworkStatsCard />
-    </CardGrid>
+    </div>
   );
 };
+
+const NoWalletCard = () => (
+  <div className="stat-card">
+    <div className="flex items-center mb-3 md:mb-4">
+      <IconWrapper color="purple">
+        <Wallet className="h-4 w-4 md:h-6 md:w-6 text-gray-400" />
+      </IconWrapper>
+    </div>
+    <CardTitle>Wallet Status</CardTitle>
+    <p className="text-gray-600 dark:text-gray-400">Connect wallet to view</p>
+  </div>
+);
 
 const BalanceCard = ({ balance, usdValue, loading, refreshing, fetchBalance }) => (
   <div className="stat-card">
@@ -88,25 +108,32 @@ const BalanceCard = ({ balance, usdValue, loading, refreshing, fetchBalance }) =
   </div>
 );
 
-const WalletInfoCard = ({ publicKey, loading }) => (
-  <div className="stat-card">
-    <div className="flex items-center mb-3 md:mb-4">
-      <IconWrapper color="green">
-        <Wallet className="h-4 w-4 md:h-6 md:w-6 text-solana-green" />
-      </IconWrapper>
+const WalletInfoCard = ({ publicKey, loading }) => {
+  const formatAddress = (address) => {
+    if (!address) return 'Not connected';
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  return (
+    <div className="stat-card">
+      <div className="flex items-center mb-3 md:mb-4">
+        <IconWrapper color="green">
+          <Wallet className="h-4 w-4 md:h-6 md:w-6 text-solana-green" />
+        </IconWrapper>
+      </div>
+      <CardTitle>Wallet Address</CardTitle>
+      
+      {loading ? (
+        <AddressSkeleton />
+      ) : (
+        <>
+          <AddressDisplay address={formatAddress(publicKey)} />
+          <NetworkInfo>Connected to Solana Devnet</NetworkInfo>
+        </>
+      )}
     </div>
-    <CardTitle>Wallet Address</CardTitle>
-    
-    {loading ? (
-      <AddressSkeleton />
-    ) : (
-      <>
-        <AddressDisplay publicKey={publicKey} />
-        <NetworkInfo>Connected to Solana Devnet</NetworkInfo>
-      </>
-    )}
-  </div>
-);
+  );
+};
 
 const NetworkStatsCard = () => (
   <div className="stat-card">
@@ -123,6 +150,7 @@ const NetworkStatsCard = () => (
   </div>
 );
 
+// Rest of the helper components remain the same...
 const IconWrapper = ({ color, children }) => {
   const bgColor = {
     purple: 'bg-solana-purple/20',
@@ -184,20 +212,13 @@ const AddressSkeleton = () => (
   </div>
 );
 
-const AddressDisplay = ({ publicKey }) => {
-  const formatAddress = (address) => {
-    if (!address) return '';
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  return (
-    <div className="flex items-center">
-      <p className="font-mono text-xs md:text-sm bg-gray-100 dark:bg-solana-gray px-2 md:px-3 py-1.5 md:py-2 rounded-lg truncate w-full">
-        {publicKey ? formatAddress(publicKey) : 'Not connected'}
-      </p>
-    </div>
-  );
-};
+const AddressDisplay = ({ address }) => (
+  <div className="flex items-center">
+    <p className="font-mono text-xs md:text-sm bg-gray-100 dark:bg-solana-gray px-2 md:px-3 py-1.5 md:py-2 rounded-lg truncate w-full">
+      {address}
+    </p>
+  </div>
+);
 
 const NetworkInfo = ({ children }) => (
   <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 md:mt-4">{children}</p>

@@ -1,4 +1,4 @@
-import { Menu, X, Wallet, Sun, Moon } from 'lucide-react';
+import { Menu, X, Wallet, Sun, Moon, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 
 const Navbar = ({ 
@@ -35,16 +35,8 @@ const Navbar = ({
   const ConnectionStatus = () => {
     if (connectionError) {
       return (
-        <div className="px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg">
+        <div className="mt-3 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg">
           <p className="text-xs text-red-600 dark:text-red-500">Connection Error</p>
-        </div>
-      );
-    }
-    
-    if (!phantomAvailable) {
-      return (
-        <div className="px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-          <p className="text-xs text-yellow-600 dark:text-yellow-500">Install Phantom</p>
         </div>
       );
     }
@@ -78,6 +70,13 @@ const Navbar = ({
         </div>
 
         <ConnectionStatus />
+
+        {!phantomAvailable && (
+          <div className="mt-3 flex items-center space-x-2 text-yellow-600 dark:text-yellow-500 text-sm">
+            <AlertTriangle className="h-4 w-4" />
+            <p>Phantom wallet not detected</p>
+          </div>
+        )}
 
         {mobileMenuOpen && (
           <MobileMenu 
