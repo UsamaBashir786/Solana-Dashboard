@@ -7,15 +7,12 @@ import {
   SystemProgram 
 } from '@solana/web3.js';
 
-// Connect to Solana devnet
 const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
 
-// Format SOL balance from lamports
 export const formatBalance = (lamports) => {
   return (lamports / LAMPORTS_PER_SOL).toFixed(4);
 };
 
-// Get SOL balance for a public key
 export const getBalance = async (publicKey) => {
   try {
     const balance = await connection.getBalance(new PublicKey(publicKey));
@@ -26,7 +23,6 @@ export const getBalance = async (publicKey) => {
   }
 };
 
-// Get recent transactions for a public key
 export const getRecentTransactions = async (publicKey) => {
   try {
     const pubKey = new PublicKey(publicKey);
@@ -55,10 +51,8 @@ export const getRecentTransactions = async (publicKey) => {
   }
 };
 
-// Send SOL transaction
 export const sendSol = async (fromPubkey, toAddress, amount, signTransaction) => {
   try {
-    // Input validation
     if (!fromPubkey || !toAddress || !amount || amount <= 0) {
       throw new Error('Invalid input parameters');
     }
@@ -67,13 +61,9 @@ export const sendSol = async (fromPubkey, toAddress, amount, signTransaction) =>
       throw new Error('Wallet not connected properly');
     }
 
-    // Convert SOL to lamports
     const lamports = amount * LAMPORTS_PER_SOL;
-    
-    // Get latest blockhash for transaction
     const { blockhash } = await connection.getLatestBlockhash();
     
-    // Create transfer instruction
     const transaction = new Transaction().add(
       SystemProgram.transfer({
         fromPubkey: new PublicKey(fromPubkey),
@@ -82,15 +72,12 @@ export const sendSol = async (fromPubkey, toAddress, amount, signTransaction) =>
       })
     );
     
-    // Set transaction parameters
     transaction.recentBlockhash = blockhash;
     transaction.feePayer = new PublicKey(fromPubkey);
     
-    // Sign and send transaction
     const signedTransaction = await signTransaction(transaction);
     const signature = await connection.sendRawTransaction(signedTransaction.serialize());
     
-    // Confirm transaction
     await connection.confirmTransaction(signature);
     
     return { success: true, signature };
@@ -100,7 +87,6 @@ export const sendSol = async (fromPubkey, toAddress, amount, signTransaction) =>
   }
 };
 
-// Check if Phantom wallet is installed
 export const isPhantomInstalled = () => {
   if (typeof window !== 'undefined') {
     return window.phantom?.solana?.isPhantom || false;
@@ -108,7 +94,6 @@ export const isPhantomInstalled = () => {
   return false;
 };
 
-// Get Phantom provider
 export const getProvider = () => {
   if (typeof window !== 'undefined' && window.phantom?.solana) {
     return window.phantom.solana;

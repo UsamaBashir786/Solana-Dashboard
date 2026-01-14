@@ -7,7 +7,6 @@
     @apply bg-gray-50 text-gray-900 dark:bg-solana-dark dark:text-gray-100 transition-colors duration-200;
   }
   
-  /* Fix for dark mode text contrast */
   .dark {
     color-scheme: dark;
   }
@@ -35,13 +34,11 @@
   }
 }
 
-/* Mobile optimizations */
 @media (max-width: 640px) {
   .container {
     @apply px-3;
   }
   
-  /* Improve touch targets */
   button, 
   input, 
   select, 
