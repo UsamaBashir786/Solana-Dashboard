@@ -386,6 +386,7 @@ const Footer = () => (
       <p className="text-center text-xs text-gray-500 dark:text-gray-500 mt-4 md:mt-8">
         This dashboard uses Solana Devnet for testing purposes. No real funds are involved.
       </p>
+      <br />
     </div>
   </footer>
 );
