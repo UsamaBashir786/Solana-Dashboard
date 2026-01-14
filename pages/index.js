@@ -5,7 +5,7 @@ import WalletCard from '../components/WalletCard';
 import SendSol from '../components/SendSol';
 import TransactionsTable from '../components/TransactionsTable';
 import { getProvider, isPhantomInstalled } from '../utils/solana';
-import { AlertTriangle, Info, Wallet } from 'lucide-react';
+import { AlertTriangle, Info, Wallet, Loader2 } from 'lucide-react';
 
 export default function Home() {
   const [walletConnected, setWalletConnected] = useState(false);
@@ -13,6 +13,8 @@ export default function Home() {
   const [darkMode, setDarkMode] = useState(true);
   const [provider, setProvider] = useState(null);
   const [phantomAvailable, setPhantomAvailable] = useState(false);
+  const [initializing, setInitializing] = useState(true);
+  const [connectionError, setConnectionError] = useState(null);
 
   useEffect(() => {
     // Apply dark mode class on initial load
@@ -22,24 +24,29 @@ export default function Home() {
       document.documentElement.classList.remove('dark');
     }
 
-    // Check if Phantom is installed
-    const checkPhantom = () => {
-      const available = isPhantomInstalled();
-      setPhantomAvailable(available);
-      
-      if (available) {
+    const initializeWallet = async () => {
+      setInitializing(true);
+      setConnectionError(null);
+
+      try {
+        // Check if Phantom is installed
+        const available = isPhantomInstalled();
+        setPhantomAvailable(available);
+        
+        if (!available) {
+          setInitializing(false);
+          return;
+        }
+
         const phantomProvider = getProvider();
         setProvider(phantomProvider);
         
         // Try eager connection if previously connected 
-        phantomProvider.connect({ onlyIfTrusted: true })
-          .then(({ publicKey }) => {
-            setWalletConnected(true);
-            setPublicKey(publicKey.toString());
-          })
-          .catch(() => {
-            // Eager connection failed, require user interaction
-          });
+        if (phantomProvider.isConnected) {
+          const response = await phantomProvider.connect({ onlyIfTrusted: true });
+          setWalletConnected(true);
+          setPublicKey(response.publicKey.toString());
+        }
         
         // Listen for account changes 
         phantomProvider.on('accountChanged', (newPublicKey) => {
@@ -54,14 +61,25 @@ export default function Home() {
         phantomProvider.on('disconnect', () => {
           handleDisconnect();
         });
+        
+      } catch (error) {
+        console.error('Initialization error:', error);
+        setConnectionError('Failed to initialize wallet connection');
+      } finally {
+        setInitializing(false);
       }
     };
-    
-    checkPhantom();
+
+    initializeWallet();
     
     // Re-check when window changes
-    window.addEventListener('load', checkPhantom);
-    return () => window.removeEventListener('load', checkPhantom);
+    window.addEventListener('load', () => {
+      setPhantomAvailable(isPhantomInstalled());
+    });
+    
+    return () => window.removeEventListener('load', () => {
+      setPhantomAvailable(isPhantomInstalled());
+    });
   }, [darkMode]);
 
   const handleConnect = async () => {
@@ -70,13 +88,15 @@ export default function Home() {
       return;
     }
     
+    setConnectionError(null);
+    
     try {
       const response = await provider.connect();
       setWalletConnected(true);
       setPublicKey(response.publicKey.toString());
     } catch (error) {
       console.error('Connection error:', error);
-      alert('Failed to connect wallet. Please try again.');
+      setConnectionError('Failed to connect wallet. Please try again.');
     }
   };
 
@@ -112,9 +132,23 @@ export default function Home() {
     } else {
       document.documentElement.classList.remove('dark');
     }
-    // Store preference in localStorage
     localStorage.setItem('darkMode', newDarkMode);
   };
+
+  // Global Loading State
+  if (initializing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-solana-dark transition-colors duration-200">
+        <div className="text-center">
+          <div className="inline-block p-6 bg-gradient-to-r from-solana-purple/20 to-solana-green/20 rounded-2xl mb-6">
+            <Loader2 className="h-16 w-16 text-solana-green animate-spin" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Initializing Dashboard</h2>
+          <p className="text-gray-600 dark:text-gray-400">Setting up Solana connection...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen transition-colors duration-200 bg-gray-50 dark:bg-solana-dark">
@@ -134,6 +168,22 @@ export default function Home() {
           darkMode={darkMode}
           toggleDarkMode={toggleDarkMode}
         />
+
+        {connectionError && (
+          <div className="mb-6 md:mb-8 p-4 md:p-6 bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/30 rounded-xl md:rounded-2xl">
+            <div className="flex items-start md:items-center space-x-3 md:space-x-4">
+              <div className="p-2 md:p-3 bg-red-500/20 rounded-lg md:rounded-xl flex-shrink-0">
+                <AlertTriangle className="h-5 w-5 md:h-6 md:w-6 text-red-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base md:text-lg font-semibold text-red-600 dark:text-red-500">Connection Error</h3>
+                <p className="text-sm md:text-base text-gray-700 dark:text-gray-300 mt-1">
+                  {connectionError}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {!phantomAvailable && (
           <div className="mb-6 md:mb-8 p-4 md:p-6 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-xl md:rounded-2xl">
@@ -274,7 +324,6 @@ export default function Home() {
           <p className="text-center text-xs text-gray-500 dark:text-gray-500 mt-4 md:mt-8">
             This dashboard uses Solana Devnet for testing purposes. No real funds are involved.
           </p>
-          <br />
         </div>
       </footer>
     </div>

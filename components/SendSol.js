@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Send, CheckCircle, XCircle } from 'lucide-react';
+import { Send, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { sendSol } from '../utils/solana';
 
 const SendSol = ({ publicKey, signTransaction }) => {
@@ -39,7 +39,7 @@ const SendSol = ({ publicKey, signTransaction }) => {
       if (result.success) {
         setMessage({
           type: 'success',
-          text: `Success! TX: ${result.signature.slice(0, 12)}...`
+          text: `Success! Transaction: ${result.signature.slice(0, 12)}...`
         });
         setRecipient('');
         setAmount('');
@@ -82,7 +82,7 @@ const SendSol = ({ publicKey, signTransaction }) => {
             onChange={(e) => setRecipient(e.target.value)}
             placeholder="Enter Solana wallet address"
             className="input-field w-full text-sm md:text-base"
-            disabled={loading}
+            disabled={loading || !publicKey}
           />
         </div>
 
@@ -98,7 +98,7 @@ const SendSol = ({ publicKey, signTransaction }) => {
             step="0.01"
             min="0"
             className="input-field w-full text-sm md:text-base"
-            disabled={loading}
+            disabled={loading || !publicKey}
           />
           <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 md:mt-2">
             Transaction fee: ~0.000005 SOL
@@ -131,8 +131,8 @@ const SendSol = ({ publicKey, signTransaction }) => {
         >
           {loading ? (
             <>
-              <div className="h-3 w-3 md:h-4 md:w-4 border-2 border-solana-dark border-t-transparent rounded-full animate-spin"></div>
-              <span>Processing...</span>
+              <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" />
+              <span>Processing Transaction...</span>
             </>
           ) : (
             <>
