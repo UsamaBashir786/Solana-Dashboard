@@ -16,7 +16,8 @@ const getConnection = () => {
       clusterApiUrl('devnet'), 
       { 
         commitment: 'confirmed',
-        confirmTransactionInitialTimeout: 60000
+        confirmTransactionInitialTimeout: 60000,
+        wsEndpoint: 'wss://api.devnet.solana.com'
       }
     );
   }
@@ -174,6 +175,34 @@ export const connectWallet = async () => {
     return {
       success: false,
       error: error.message
+    };
+  }
+};
+
+// Helper to check if wallet is already connected
+export const isWalletConnected = async () => {
+  try {
+    const provider = getProvider();
+    if (!provider) return false;
+    
+    // Check if provider has a public key
+    if (provider.publicKey) {
+      return {
+        connected: true,
+        publicKey: provider.publicKey.toString()
+      };
+    }
+    
+    // Try to get connection status
+    return {
+      connected: false,
+      publicKey: null
+    };
+  } catch (error) {
+    console.error('Error checking wallet connection:', error);
+    return {
+      connected: false,
+      publicKey: null
     };
   }
 };
