@@ -17,9 +17,17 @@ export default function Home() {
   const [phantomAvailable, setPhantomAvailable] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const [connectionError, setConnectionError] = useState(null);
+  const [mounted, setMounted] = useState(false); // Fix for hydration errors
 
-  // Load dark mode preference
+  // Fix hydration by only running on client
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Load dark mode preference - client-side only
+  useEffect(() => {
+    if (!mounted) return;
+    
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode !== null) {
       const isDark = savedDarkMode === 'true';
@@ -30,10 +38,12 @@ export default function Home() {
     } else if (darkMode) {
       document.documentElement.classList.add('dark');
     }
-  }, []);
+  }, [mounted, darkMode]);
 
   // Initialize wallet connection
   useEffect(() => {
+    if (!mounted) return;
+    
     const initializeWallet = async () => {
       setInitializing(true);
       setConnectionError(null);
@@ -128,7 +138,7 @@ export default function Home() {
         provider.removeAllListeners();
       }
     };
-  }, []);
+  }, [mounted]);
 
   const handleConnect = async () => {
     if (!phantomAvailable) {
@@ -158,9 +168,6 @@ export default function Home() {
       } else {
         setConnectionError('Failed to connect wallet. Please try again.');
       }
-      
-      // Don't clear stored state on connection errors
-      // This allows retry without losing the previous wallet
     }
   };
 
@@ -207,7 +214,7 @@ export default function Home() {
   };
 
   const WalletNotConnectedView = () => {
-    const hasSavedWallet = loadWalletState() !== null;
+    const hasSavedWallet = mounted && loadWalletState() !== null;
     
     return (
       <div className="text-center py-12 md:py-20">
@@ -264,7 +271,7 @@ export default function Home() {
   };
 
   const LoadingView = () => {
-    const hasSavedWallet = loadWalletState() !== null;
+    const hasSavedWallet = mounted && loadWalletState() !== null;
     
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-solana-dark transition-colors duration-200">
@@ -285,20 +292,23 @@ export default function Home() {
     );
   };
 
-  if (initializing) return <LoadingView />;
+  // Show loading until mounted
+  if (!mounted || initializing) return <LoadingView />;
 
   return (
     <div className="min-h-screen transition-colors duration-200 bg-gray-50 dark:bg-solana-dark">
-    <Head>
-    <title>Solana Wallet Dashboard</title>
-    <meta name="description" content="Professional Solana wallet dashboard with Phantom integration" />
-    
-    {/* Use the Color version as main favicon */}
-    <link rel="icon" href="/Solana-Logomark-Color.svg" type="image/svg+xml" />
-    
-    
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  </Head>
+      <Head>
+        <title>Solana Wallet Dashboard | Professional Web3 Interface</title>
+        <meta name="description" content="Professional Solana wallet dashboard with Phantom integration" />
+        
+        {/* Fixed favicon path - removed spaces from filename */}
+        <link rel="icon" href="/Solana-Logomark-Color.svg" type="image/svg+xml" />
+        
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+        
+        {/* REMOVED manifest reference to fix 404 error */}
+        {/* <link rel="manifest" href="/site.webmanifest" /> */}
+      </Head>
 
       <main className="container mx-auto px-4 py-4 md:py-8">
         <Navbar

@@ -1,0 +1,18 @@
+{
+  "name": "Solana Wallet Dashboard",
+  "short_name": "Solana Dashboard",
+  "description": "Professional Solana wallet dashboard with Phantom integration",
+  "theme_color": "#9945FF",
+  "background_color": "#0f0f23",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "/Solana Logomark - Color.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
