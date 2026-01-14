@@ -289,12 +289,22 @@ export default function Home() {
 
   return (
     <div className="min-h-screen transition-colors duration-200 bg-gray-50 dark:bg-solana-dark">
-      <Head>
-        <title>Solana Wallet Dashboard | Professional Web3 Interface</title>
-        <meta name="description" content="Professional Solana wallet dashboard with Phantom integration" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-        <link rel="icon" href="public/favicon.ico" />
-      </Head>
+    <Head>
+    <title>Solana Wallet Dashboard</title>
+    <meta name="description" content="Professional Solana wallet dashboard with Phantom integration" />
+    
+    {/* Use the Color version as main favicon */}
+    <link rel="icon" href="/Solana%20Logomark%20-%20Color.svg" type="image/svg+xml" />
+    
+    {/* Optional: Create dynamic favicon based on dark/light mode */}
+    {darkMode ? (
+      <link rel="icon" href="/Solana%20Logomark%20-%20White.svg" type="image/svg+xml" />
+    ) : (
+      <link rel="icon" href="/Solana%20Logomark%20-%20Black.svg" type="image/svg+xml" />
+    )}
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  </Head>
 
       <main className="container mx-auto px-4 py-4 md:py-8">
         <Navbar
