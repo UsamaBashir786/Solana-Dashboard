@@ -7,7 +7,21 @@ import {
   SystemProgram 
 } from '@solana/web3.js';
 
-const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+// Use a single persistent connection
+let connection;
+
+const getConnection = () => {
+  if (!connection) {
+    connection = new Connection(
+      clusterApiUrl('devnet'), 
+      { 
+        commitment: 'confirmed',
+        confirmTransactionInitialTimeout: 60000
+      }
+    );
+  }
+  return connection;
+};
 
 export const formatBalance = (lamports) => {
   return (lamports / LAMPORTS_PER_SOL).toFixed(4);
@@ -15,7 +29,10 @@ export const formatBalance = (lamports) => {
 
 export const getBalance = async (publicKey) => {
   try {
-    const balance = await connection.getBalance(new PublicKey(publicKey));
+    if (!publicKey) return 0;
+    
+    const conn = getConnection();
+    const balance = await conn.getBalance(new PublicKey(publicKey));
     return balance;
   } catch (error) {
     console.error('Error fetching balance:', error);
@@ -25,26 +42,48 @@ export const getBalance = async (publicKey) => {
 
 export const getRecentTransactions = async (publicKey) => {
   try {
+    if (!publicKey) return [];
+    
+    const conn = getConnection();
     const pubKey = new PublicKey(publicKey);
-    const signatures = await connection.getSignaturesForAddress(pubKey, { limit: 5 });
+    
+    // Get signatures with timeout
+    const signatures = await Promise.race([
+      conn.getSignaturesForAddress(pubKey, { limit: 5 }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Transaction fetch timeout')), 10000)
+      )
+    ]);
     
     const transactions = await Promise.all(
-      signatures.map(async (sig) => {
-        const tx = await connection.getTransaction(sig.signature, {
-          maxSupportedTransactionVersion: 0
-        });
-        
-        return {
-          signature: sig.signature,
-          status: sig.err ? 'Failed' : 'Success',
-          timestamp: sig.blockTime ? new Date(sig.blockTime * 1000).toLocaleString() : 'N/A',
-          amount: tx?.meta?.postBalances?.[0] - tx?.meta?.preBalances?.[0] || 0,
-          fee: tx?.meta?.fee || 0
-        };
+      signatures.slice(0, 5).map(async (sig) => {
+        try {
+          const tx = await conn.getTransaction(sig.signature, {
+            maxSupportedTransactionVersion: 0,
+            commitment: 'confirmed'
+          });
+          
+          return {
+            signature: sig.signature,
+            status: sig.err ? 'Failed' : 'Success',
+            timestamp: sig.blockTime ? new Date(sig.blockTime * 1000).toLocaleString() : 'N/A',
+            amount: tx?.meta?.postBalances?.[0] - tx?.meta?.preBalances?.[0] || 0,
+            fee: tx?.meta?.fee || 0
+          };
+        } catch (error) {
+          console.error('Error fetching transaction details:', error);
+          return {
+            signature: sig.signature,
+            status: 'Unknown',
+            timestamp: 'N/A',
+            amount: 0,
+            fee: 0
+          };
+        }
       })
     );
     
-    return transactions;
+    return transactions.filter(tx => tx !== null);
   } catch (error) {
     console.error('Error fetching transactions:', error);
     return [];
@@ -61,24 +100,41 @@ export const sendSol = async (fromPubkey, toAddress, amount, signTransaction) =>
       throw new Error('Wallet not connected properly');
     }
 
-    const lamports = amount * LAMPORTS_PER_SOL;
-    const { blockhash } = await connection.getLatestBlockhash();
+    const lamports = Math.floor(amount * LAMPORTS_PER_SOL);
+    
+    // Validate addresses
+    const fromPubKey = new PublicKey(fromPubkey);
+    const toPubKey = new PublicKey(toAddress);
+    
+    const conn = getConnection();
+    const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash();
+    
+    // Check balance before sending
+    const balance = await conn.getBalance(fromPubKey);
+    if (balance < lamports) {
+      throw new Error(`Insufficient balance. Available: ${formatBalance(balance)} SOL, Required: ${amount} SOL`);
+    }
     
     const transaction = new Transaction().add(
       SystemProgram.transfer({
-        fromPubkey: new PublicKey(fromPubkey),
-        toPubkey: new PublicKey(toAddress),
+        fromPubkey: fromPubKey,
+        toPubkey: toPubKey,
         lamports
       })
     );
     
     transaction.recentBlockhash = blockhash;
-    transaction.feePayer = new PublicKey(fromPubkey);
+    transaction.feePayer = fromPubKey;
     
     const signedTransaction = await signTransaction(transaction);
-    const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+    const signature = await conn.sendRawTransaction(signedTransaction.serialize());
     
-    await connection.confirmTransaction(signature);
+    // Wait for confirmation
+    await conn.confirmTransaction({
+      signature,
+      blockhash,
+      lastValidBlockHeight
+    });
     
     return { success: true, signature };
   } catch (error) {
@@ -89,7 +145,7 @@ export const sendSol = async (fromPubkey, toAddress, amount, signTransaction) =>
 
 export const isPhantomInstalled = () => {
   if (typeof window !== 'undefined') {
-    return window.phantom?.solana?.isPhantom || false;
+    return !!window.phantom?.solana?.isPhantom;
   }
   return false;
 };
@@ -99,4 +155,25 @@ export const getProvider = () => {
     return window.phantom.solana;
   }
   return null;
+};
+
+export const connectWallet = async () => {
+  try {
+    const provider = getProvider();
+    if (!provider) {
+      throw new Error('Phantom wallet not installed');
+    }
+    
+    const response = await provider.connect();
+    return {
+      success: true,
+      publicKey: response.publicKey.toString()
+    };
+  } catch (error) {
+    console.error('Wallet connection error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
 };
