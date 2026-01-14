@@ -30,99 +30,155 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => {
-    const initializeWallet = async () => {
-      setInitializing(true);
-      setConnectionError(null);
-
-      try {
-        const available = isPhantomInstalled();
-        setPhantomAvailable(available);
-        
-        if (!available) {
-          setInitializing(false);
-          return;
-        }
-
-        const phantomProvider = getProvider();
-        setProvider(phantomProvider);
-        
-        // Check localStorage for previously connected wallet
-        const savedWallet = localStorage.getItem('solanaWallet');
-        
-        if (savedWallet) {
-          try {
-            // Try to reconnect silently
-            const response = await phantomProvider.connect({ onlyIfTrusted: true });
-            setWalletConnected(true);
-            setPublicKey(response.publicKey.toString());
-            localStorage.setItem('solanaWallet', response.publicKey.toString());
-          } catch (e) {
-            // Silent reconnect failed, require user interaction
-            console.log('Silent reconnect failed, will require user click');
-            localStorage.removeItem('solanaWallet');
-          }
-        }
-        
-        // Listen for account changes 
-        phantomProvider.on('accountChanged', (newPublicKey) => {
-          if (newPublicKey) {
-            setPublicKey(newPublicKey.toString());
-            setWalletConnected(true);
-            localStorage.setItem('solanaWallet', newPublicKey.toString());
-          } else {
-            handleDisconnect();
-          }
-        });
-        
-        // Listen for disconnect events 
-        phantomProvider.on('disconnect', () => {
-          handleDisconnect();
-        });
-        
-        // Listen for connect events
-        phantomProvider.on('connect', () => {
-          console.log('Phantom wallet connected');
-        });
-        
-      } catch (error) {
-        console.error('Initialization error:', error);
-        setConnectionError('Failed to initialize wallet connection');
-      } finally {
-        setInitializing(false);
-      }
-    };
-
-    initializeWallet();
-    
-    return () => {
-      if (provider) {
-        provider.removeAllListeners();
-      }
-    };
-  }, []);
-
-  const handleConnect = async () => {
-    if (!phantomAvailable) {
-      window.open('https://phantom.app/', '_blank');
-      return;
-    }
-    
+// In your Home component
+useEffect(() => {
+  const initializeWallet = async () => {
+    setInitializing(true);
     setConnectionError(null);
-    
+
     try {
-      const response = await provider.connect();
-      setWalletConnected(true);
-      setPublicKey(response.publicKey.toString());
+      const available = isPhantomInstalled();
+      setPhantomAvailable(available);
       
-      // Save to localStorage for auto-reconnect
-      localStorage.setItem('solanaWallet', response.publicKey.toString());
+      if (!available) {
+        setInitializing(false);
+        return;
+      }
+
+      const phantomProvider = getProvider();
+      setProvider(phantomProvider);
+      
+      // Load previous wallet state
+      const storedState = loadWalletState();
+      const hasStoredWallet = storedState !== null;
+      
+      if (hasStoredWallet && phantomProvider) {
+        try {
+          // Try silent reconnect with stored public key
+          console.log('Attempting silent reconnect with:', storedState.publicKey);
+          
+          // First check if wallet is already connected
+          if (phantomProvider.publicKey) {
+            // Wallet already connected (from previous session)
+            const pubKeyStr = phantomProvider.publicKey.toString();
+            setWalletConnected(true);
+            setPublicKey(pubKeyStr);
+            saveWalletState(pubKeyStr);
+            console.log('Wallet already connected:', pubKeyStr);
+          } else {
+            // Attempt silent reconnect
+            await phantomProvider.connect({ onlyIfTrusted: true });
+            
+            if (phantomProvider.publicKey) {
+              const pubKeyStr = phantomProvider.publicKey.toString();
+              setWalletConnected(true);
+              setPublicKey(pubKeyStr);
+              saveWalletState(pubKeyStr);
+              console.log('Silent reconnect successful:', pubKeyStr);
+            }
+          }
+        } catch (silentError) {
+          console.log('Silent reconnect failed, user interaction required');
+          // Don't clear state - keep it for manual reconnect
+          setWalletConnected(false);
+          setPublicKey(null);
+          
+          // Set a helpful message
+          setConnectionError('Wallet detected. Click "Reconnect" to continue.');
+        }
+      }
+      
+      // Set up event listeners
+      phantomProvider.on('accountChanged', (newPublicKey) => {
+        if (newPublicKey) {
+          const pubKeyStr = newPublicKey.toString();
+          setPublicKey(pubKeyStr);
+          setWalletConnected(true);
+          saveWalletState(pubKeyStr);
+        } else {
+          handleDisconnect();
+        }
+      });
+      
+      phantomProvider.on('disconnect', () => {
+        handleDisconnect();
+      });
+      
+      phantomProvider.on('connect', (connectionInfo) => {
+        console.log('Phantom wallet connected:', connectionInfo);
+        if (phantomProvider.publicKey) {
+          const pubKeyStr = phantomProvider.publicKey.toString();
+          saveWalletState(pubKeyStr);
+        }
+      });
+      
     } catch (error) {
-      console.error('Connection error:', error);
-      setConnectionError('Failed to connect wallet. Please try again.');
-      localStorage.removeItem('solanaWallet');
+      console.error('Initialization error:', error);
+      setConnectionError('Failed to initialize wallet connection');
+    } finally {
+      setInitializing(false);
     }
   };
+
+  initializeWallet();
+  
+  return () => {
+    if (provider) {
+      provider.removeAllListeners();
+    }
+  };
+}, []);
+
+  const handleConnect = async () => {
+  if (!phantomAvailable) {
+    window.open('https://phantom.app/', '_blank');
+    return;
+  }
+  
+  setConnectionError(null);
+  
+  try {
+    const response = await provider.connect();
+    const pubKeyStr = response.publicKey.toString();
+    
+    setWalletConnected(true);
+    setPublicKey(pubKeyStr);
+    
+    // Save to persistent storage
+    saveWalletState(pubKeyStr);
+    
+    console.log('Manual connect successful:', pubKeyStr);
+  } catch (error) {
+    console.error('Connection error:', error);
+    
+    if (error.code === 4001) {
+      // User rejected the connection request
+      setConnectionError('Connection rejected by user');
+    } else {
+      setConnectionError('Failed to connect wallet. Please try again.');
+    }
+    
+    // Don't clear stored state on connection errors
+    // This allows retry without losing the previous wallet
+  }
+};
+
+const handleDisconnect = async () => {
+  try {
+    if (provider && provider.disconnect) {
+      await provider.disconnect();
+    }
+    setWalletConnected(false);
+    setPublicKey(null);
+    
+    // Clear persistent storage
+    clearWalletState();
+    
+    console.log('Wallet disconnected and state cleared');
+  } catch (error) {
+    console.error('Disconnection error:', error);
+  }
+};
 
   const handleDisconnect = async () => {
     try {
