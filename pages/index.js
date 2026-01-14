@@ -5,8 +5,9 @@ import WalletCard from '../components/WalletCard';
 import SendSol from '../components/SendSol';
 import TransactionsTable from '../components/TransactionsTable';
 import QuickTips from '../components/QuickTips';
-import { getProvider, isPhantomInstalled, connectWallet } from '../utils/solana';
-import { Loader2, Wallet } from 'lucide-react';
+import { getProvider, isPhantomInstalled } from '../utils/solana';
+import { saveWalletState, loadWalletState, clearWalletState } from '../utils/walletPersist';
+import { Loader2, Wallet, AlertTriangle } from 'lucide-react';
 
 export default function Home() {
   const [walletConnected, setWalletConnected] = useState(false);
@@ -17,6 +18,7 @@ export default function Home() {
   const [initializing, setInitializing] = useState(true);
   const [connectionError, setConnectionError] = useState(null);
 
+  // Load dark mode preference
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode');
     if (savedDarkMode !== null) {
@@ -30,155 +32,137 @@ export default function Home() {
     }
   }, []);
 
-// In your Home component
-useEffect(() => {
-  const initializeWallet = async () => {
-    setInitializing(true);
-    setConnectionError(null);
+  // Initialize wallet connection
+  useEffect(() => {
+    const initializeWallet = async () => {
+      setInitializing(true);
+      setConnectionError(null);
 
-    try {
-      const available = isPhantomInstalled();
-      setPhantomAvailable(available);
-      
-      if (!available) {
-        setInitializing(false);
-        return;
-      }
+      try {
+        const available = isPhantomInstalled();
+        setPhantomAvailable(available);
+        
+        if (!available) {
+          setInitializing(false);
+          return;
+        }
 
-      const phantomProvider = getProvider();
-      setProvider(phantomProvider);
-      
-      // Load previous wallet state
-      const storedState = loadWalletState();
-      const hasStoredWallet = storedState !== null;
-      
-      if (hasStoredWallet && phantomProvider) {
-        try {
-          // Try silent reconnect with stored public key
-          console.log('Attempting silent reconnect with:', storedState.publicKey);
-          
-          // First check if wallet is already connected
-          if (phantomProvider.publicKey) {
-            // Wallet already connected (from previous session)
-            const pubKeyStr = phantomProvider.publicKey.toString();
-            setWalletConnected(true);
-            setPublicKey(pubKeyStr);
-            saveWalletState(pubKeyStr);
-            console.log('Wallet already connected:', pubKeyStr);
-          } else {
-            // Attempt silent reconnect
-            await phantomProvider.connect({ onlyIfTrusted: true });
+        const phantomProvider = getProvider();
+        setProvider(phantomProvider);
+        
+        // Load previous wallet state
+        const storedState = loadWalletState();
+        const hasStoredWallet = storedState !== null;
+        
+        if (hasStoredWallet && phantomProvider) {
+          try {
+            console.log('Attempting silent reconnect with:', storedState.publicKey);
             
+            // First check if wallet is already connected
             if (phantomProvider.publicKey) {
+              // Wallet already connected (from previous session)
               const pubKeyStr = phantomProvider.publicKey.toString();
               setWalletConnected(true);
               setPublicKey(pubKeyStr);
               saveWalletState(pubKeyStr);
-              console.log('Silent reconnect successful:', pubKeyStr);
+              console.log('Wallet already connected:', pubKeyStr);
+            } else {
+              // Attempt silent reconnect
+              await phantomProvider.connect({ onlyIfTrusted: true });
+              
+              if (phantomProvider.publicKey) {
+                const pubKeyStr = phantomProvider.publicKey.toString();
+                setWalletConnected(true);
+                setPublicKey(pubKeyStr);
+                saveWalletState(pubKeyStr);
+                console.log('Silent reconnect successful:', pubKeyStr);
+              }
             }
+          } catch (silentError) {
+            console.log('Silent reconnect failed, user interaction required');
+            // Don't clear state - keep it for manual reconnect
+            setWalletConnected(false);
+            setPublicKey(null);
+            
+            // Set a helpful message
+            setConnectionError('Wallet detected. Click "Reconnect" to continue.');
           }
-        } catch (silentError) {
-          console.log('Silent reconnect failed, user interaction required');
-          // Don't clear state - keep it for manual reconnect
-          setWalletConnected(false);
-          setPublicKey(null);
-          
-          // Set a helpful message
-          setConnectionError('Wallet detected. Click "Reconnect" to continue.');
         }
-      }
-      
-      // Set up event listeners
-      phantomProvider.on('accountChanged', (newPublicKey) => {
-        if (newPublicKey) {
-          const pubKeyStr = newPublicKey.toString();
-          setPublicKey(pubKeyStr);
-          setWalletConnected(true);
-          saveWalletState(pubKeyStr);
-        } else {
+        
+        // Set up event listeners
+        phantomProvider.on('accountChanged', (newPublicKey) => {
+          if (newPublicKey) {
+            const pubKeyStr = newPublicKey.toString();
+            setPublicKey(pubKeyStr);
+            setWalletConnected(true);
+            saveWalletState(pubKeyStr);
+          } else {
+            handleDisconnect();
+          }
+        });
+        
+        phantomProvider.on('disconnect', () => {
           handleDisconnect();
-        }
-      });
-      
-      phantomProvider.on('disconnect', () => {
-        handleDisconnect();
-      });
-      
-      phantomProvider.on('connect', (connectionInfo) => {
-        console.log('Phantom wallet connected:', connectionInfo);
-        if (phantomProvider.publicKey) {
-          const pubKeyStr = phantomProvider.publicKey.toString();
-          saveWalletState(pubKeyStr);
-        }
-      });
-      
-    } catch (error) {
-      console.error('Initialization error:', error);
-      setConnectionError('Failed to initialize wallet connection');
-    } finally {
-      setInitializing(false);
-    }
-  };
+        });
+        
+        phantomProvider.on('connect', () => {
+          console.log('Phantom wallet connected');
+          if (phantomProvider.publicKey) {
+            const pubKeyStr = phantomProvider.publicKey.toString();
+            saveWalletState(pubKeyStr);
+          }
+        });
+        
+      } catch (error) {
+        console.error('Initialization error:', error);
+        setConnectionError('Failed to initialize wallet connection');
+      } finally {
+        setInitializing(false);
+      }
+    };
 
-  initializeWallet();
-  
-  return () => {
-    if (provider) {
-      provider.removeAllListeners();
-    }
-  };
-}, []);
+    initializeWallet();
+    
+    return () => {
+      if (provider) {
+        provider.removeAllListeners();
+      }
+    };
+  }, []);
 
   const handleConnect = async () => {
-  if (!phantomAvailable) {
-    window.open('https://phantom.app/', '_blank');
-    return;
-  }
-  
-  setConnectionError(null);
-  
-  try {
-    const response = await provider.connect();
-    const pubKeyStr = response.publicKey.toString();
-    
-    setWalletConnected(true);
-    setPublicKey(pubKeyStr);
-    
-    // Save to persistent storage
-    saveWalletState(pubKeyStr);
-    
-    console.log('Manual connect successful:', pubKeyStr);
-  } catch (error) {
-    console.error('Connection error:', error);
-    
-    if (error.code === 4001) {
-      // User rejected the connection request
-      setConnectionError('Connection rejected by user');
-    } else {
-      setConnectionError('Failed to connect wallet. Please try again.');
+    if (!phantomAvailable) {
+      window.open('https://phantom.app/', '_blank');
+      return;
     }
     
-    // Don't clear stored state on connection errors
-    // This allows retry without losing the previous wallet
-  }
-};
-
-const handleDisconnect = async () => {
-  try {
-    if (provider && provider.disconnect) {
-      await provider.disconnect();
+    setConnectionError(null);
+    
+    try {
+      const response = await provider.connect();
+      const pubKeyStr = response.publicKey.toString();
+      
+      setWalletConnected(true);
+      setPublicKey(pubKeyStr);
+      
+      // Save to persistent storage
+      saveWalletState(pubKeyStr);
+      
+      console.log('Manual connect successful:', pubKeyStr);
+    } catch (error) {
+      console.error('Connection error:', error);
+      
+      if (error.code === 4001) {
+        // User rejected the connection request
+        setConnectionError('Connection rejected by user');
+      } else {
+        setConnectionError('Failed to connect wallet. Please try again.');
+      }
+      
+      // Don't clear stored state on connection errors
+      // This allows retry without losing the previous wallet
     }
-    setWalletConnected(false);
-    setPublicKey(null);
-    
-    // Clear persistent storage
-    clearWalletState();
-    
-    console.log('Wallet disconnected and state cleared');
-  } catch (error) {
-    console.error('Disconnection error:', error);
-  }
-};
+  };
 
   const handleDisconnect = async () => {
     try {
@@ -187,7 +171,11 @@ const handleDisconnect = async () => {
       }
       setWalletConnected(false);
       setPublicKey(null);
-      localStorage.removeItem('solanaWallet');
+      
+      // Clear persistent storage
+      clearWalletState();
+      
+      console.log('Wallet disconnected and state cleared');
     } catch (error) {
       console.error('Disconnection error:', error);
     }
@@ -218,61 +206,84 @@ const handleDisconnect = async () => {
     localStorage.setItem('darkMode', newDarkMode);
   };
 
-  const WalletNotConnectedView = () => (
-    <div className="text-center py-12 md:py-20">
-      <div className="max-w-md mx-auto px-4">
-        <div className="p-4 md:p-6 bg-gradient-to-r from-solana-purple/20 to-solana-green/20 rounded-xl md:rounded-2xl inline-block mb-6 md:mb-8">
-          <Wallet className="h-16 w-16 md:h-24 md:w-24 text-gray-800 dark:text-white" />
+  const WalletNotConnectedView = () => {
+    const hasSavedWallet = loadWalletState() !== null;
+    
+    return (
+      <div className="text-center py-12 md:py-20">
+        <div className="max-w-md mx-auto px-4">
+          <div className="p-4 md:p-6 bg-gradient-to-r from-solana-purple/20 to-solana-green/20 rounded-xl md:rounded-2xl inline-block mb-6 md:mb-8">
+            <Wallet className="h-16 w-16 md:h-24 md:w-24 text-gray-800 dark:text-white" />
+          </div>
+          
+          {hasSavedWallet ? (
+            <>
+              <h2 className="text-2xl md:text-3xl font-bold mb-3 md:mb-4 text-gray-800 dark:text-white">
+                Welcome Back!
+              </h2>
+              <p className="text-sm md:text-base text-gray-600 dark:text-gray-400 mb-6 md:mb-8">
+                Your wallet was detected. Click below to reconnect and continue.
+              </p>
+              <div className="space-y-4">
+                <button
+                  onClick={handleConnect}
+                  className="btn-primary text-base md:text-lg px-6 py-3 md:px-8 md:py-4 w-full"
+                >
+                  Reconnect Wallet
+                </button>
+                <button
+                  onClick={handleDisconnect}
+                  className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                >
+                  Use a different wallet
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-2xl md:text-3xl font-bold mb-3 md:mb-4 text-gray-800 dark:text-white">
+                Connect Your Phantom Wallet
+              </h2>
+              <p className="text-sm md:text-base text-gray-600 dark:text-gray-400 mb-6 md:mb-8">
+                Connect your Phantom wallet to access your SOL balance, send transactions, and view your transaction history on the Solana devnet.
+              </p>
+              <button
+                onClick={handleConnect}
+                className="btn-primary text-base md:text-lg px-6 py-3 md:px-8 md:py-4 w-full"
+              >
+                Connect Phantom Wallet
+              </button>
+            </>
+          )}
+          <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-4 md:mt-6">
+            By connecting, you agree to our Terms of Service and Privacy Policy
+          </p>
         </div>
-        <h2 className="text-2xl md:text-3xl font-bold mb-3 md:mb-4 text-gray-800 dark:text-white">
-          {localStorage.getItem('solanaWallet') ? 'Reconnect Your Wallet' : 'Connect Your Phantom Wallet'}
-        </h2>
-        <p className="text-sm md:text-base text-gray-600 dark:text-gray-400 mb-6 md:mb-8">
-          {localStorage.getItem('solanaWallet') 
-            ? 'Your wallet was disconnected. Click below to reconnect.'
-            : 'Connect your Phantom wallet to access your SOL balance, send transactions, and view your transaction history on the Solana devnet.'}
-        </p>
-        <button
-          onClick={handleConnect}
-          className="btn-primary text-base md:text-lg px-6 py-3 md:px-8 md:py-4 w-full md:w-auto"
-        >
-          {localStorage.getItem('solanaWallet') ? 'Reconnect Wallet' : 'Connect Phantom Wallet'}
-        </button>
-        {localStorage.getItem('solanaWallet') && (
-          <button
-            onClick={() => {
-              localStorage.removeItem('solanaWallet');
-              window.location.reload();
-            }}
-            className="mt-3 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-          >
-            Use different wallet
-          </button>
-        )}
-        <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mt-4 md:mt-6">
-          By connecting, you agree to our Terms of Service and Privacy Policy
-        </p>
       </div>
-    </div>
-  );
+    );
+  };
 
-  const LoadingView = () => (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-solana-dark transition-colors duration-200">
-      <div className="text-center">
-        <div className="inline-block p-6 bg-gradient-to-r from-solana-purple/20 to-solana-green/20 rounded-2xl mb-6">
-          <Loader2 className="h-16 w-16 text-solana-green animate-spin" />
+  const LoadingView = () => {
+    const hasSavedWallet = loadWalletState() !== null;
+    
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-solana-dark transition-colors duration-200">
+        <div className="text-center">
+          <div className="inline-block p-6 bg-gradient-to-r from-solana-purple/20 to-solana-green/20 rounded-2xl mb-6">
+            <Loader2 className="h-16 w-16 text-solana-green animate-spin" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
+            {hasSavedWallet ? 'Reconnecting Wallet...' : 'Initializing Dashboard'}
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            {hasSavedWallet 
+              ? 'Restoring your wallet connection...' 
+              : 'Setting up Solana connection...'}
+          </p>
         </div>
-        <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
-          {localStorage.getItem('solanaWallet') ? 'Reconnecting Wallet...' : 'Initializing Dashboard'}
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400">
-          {localStorage.getItem('solanaWallet') 
-            ? 'Restoring your wallet connection...' 
-            : 'Setting up Solana connection...'}
-        </p>
       </div>
-    </div>
-  );
+    );
+  };
 
   if (initializing) return <LoadingView />;
 
@@ -374,22 +385,4 @@ const FooterLink = ({ href, text }) => (
   >
     {text}
   </a>
-);
-
-// Add AlertTriangle component
-const AlertTriangle = ({ className }) => (
-  <svg 
-    className={className} 
-    fill="none" 
-    stroke="currentColor" 
-    viewBox="0 0 24 24" 
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      strokeWidth="2" 
-      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.342 16.5c-.77.833.192 2.5 1.732 2.5z" 
-    />
-  </svg>
 );
