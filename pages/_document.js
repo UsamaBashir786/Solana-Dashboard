@@ -4,14 +4,14 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        {/* Fixed favicon path */}
+        {/* Favicon - MATCH YOUR ACTUAL FILENAME */}
         <link rel="icon" href="/Solana-Logomark-Color.svg" type="image/svg+xml" />
         
-        {/* Theme colors */}
+        {/* If your file still has spaces, use URL encoding: */}
+        {/* <link rel="icon" href="/Solana%20Logomark%20-%20Color.svg" type="image/svg+xml" /> */}
+        
         <meta name="theme-color" content="#9945FF" />
         <meta name="msapplication-TileColor" content="#9945FF" />
-        
-        {/* NO manifest reference to avoid 404 errors */}
       </Head>
       <body>
         <Main />
