@@ -1,5 +1,4 @@
 // utils/walletPersist.js
-import { getProvider, isPhantomInstalled } from './solana';
 
 // Key for storing wallet state
 const WALLET_STORAGE_KEY = 'solana_wallet_state';
@@ -47,33 +46,14 @@ export const clearWalletState = () => {
 export const shouldAutoReconnect = () => {
   if (typeof window === 'undefined') return false;
   
-  // Check if Phantom is available
-  if (!isPhantomInstalled()) return false;
-  
-  // Check if we have a valid stored state
-  const state = loadWalletState();
-  if (!state) return false;
-  
-  // Additional safety check - ensure we're not in incognito mode
+  // Check if localStorage is available
   try {
     localStorage.setItem('test_autoconnect', 'test');
     localStorage.removeItem('test_autoconnect');
-    return true;
+    
+    const state = loadWalletState();
+    return state !== null;
   } catch {
     return false; // Incognito mode or storage blocked
   }
-};
-
-// Get connection params based on trust status
-export const getConnectionParams = () => {
-  // First check if we have a saved public key
-  const state = loadWalletState();
-  
-  if (!state) {
-    // No previous connection - standard connect
-    return {};
-  }
-  
-  // We have a previous connection - try silent reconnect
-  return { onlyIfTrusted: true };
 };
