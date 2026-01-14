@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gradient background -->
+  <defs>
+    <linearGradient id="solanaGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9945FF"/>
+      <stop offset="100%" stop-color="#14F195"/>
+    </linearGradient>
+    <linearGradient id="solanaGradient2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9945FF"/>
+      <stop offset="100%" stop-color="#14F195"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="28" fill="url(#solanaGradient)" opacity="0.9"/>
+  
+  <!-- Wallet icon outline -->
+  <path d="M44,24 L44,40 C44,41.1046 43.1046,42 42,42 L22,42 C20.8954,42 20,41.1046 20,40 L20,24 C20,22.8954 20.8954,22 22,22 L42,22 C43.1046,22 44,22.8954 44,24 Z" 
+        fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- Wallet interior line -->
+  <path d="M20,30 L44,30" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+  
+  <!-- SOL letter inside -->
+  <text x="32" y="38" text-anchor="middle" fill="#FFFFFF" font-family="Arial, sans-serif" font-weight="bold" font-size="14">SOL</text>
+</svg>
